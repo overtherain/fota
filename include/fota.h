@@ -28,6 +28,7 @@ int ERROR_SEND_HEADER_FAILED = -6;
 int ERROR_HTTP_GET_FAILED = -7;
 int ERROR_DOWNLOAD_FAILED = -8;
 int ERROR_HTTP_STATUS_CODE = -9;
+int ERROR_FILE_OPEN_FAILED = -10;
 
 typedef struct HTTP_RES_HEADER//保持相应头信息
 {
@@ -59,12 +60,10 @@ void free_all();
 
 void parse_url(const char *url, char *host, int *port, char *file_name);
 void get_ip_addr(char *host_name, char *ip_addr);
-void progress_bar(long cur_size, long total_size, double speed);
-void download(int client_socket);
-void continue_download(int client_socket);
-void parse_header(const char *response);
-void get_http_response(int client_socket);
+void progress_bar(const char *file_name,float sum,float file_size);
 
+int download(int client_socket);
+int continue_download(int client_socket);
 int send_http_header(int client_socket);
 int http_get_full();
 int http_get_tmp();
@@ -73,6 +72,7 @@ int check_download_file();
 int parse_http_header(int client_socket, HTTP_RES_HEADER *http_res_header);
 
 unsigned long get_file_size(const char *filename);
+unsigned long file_index(char* path);
 
 #ifdef DEBUG
     #define log_d(format, ...)  \

@@ -1,8 +1,153 @@
 #include "include/fota.h"
 
+
+void get_ip_addr(char *host_name, char *ip_addr)
+{
+    //log_d("get_ip_addr\n");
+    int i = 0;
+    struct hostent *host = gethostbyname(host_name);
+    if (!host){
+        log_e("get host from host_name failed\n");
+        ip_addr = NULL;
+        return;
+    }
+    
+    for (i = 0; host->h_addr_list[i]; i++){
+        strcpy(ip_addr, inet_ntoa( * (struct in_addr*) host->h_addr_list[i]));
+        log_e("get host from host_name, ip_addr:%s\n", ip_addr);
+        break;
+    }
+}
+
+void progress_bar(const char *file_name,float sum,float file_size)
+{
+    float percent = (sum / file_size) * 100;
+    char *sign = "#";
+    if ((int)percent != 0){
+        sign = (char *)malloc((int)percent + 1);
+        strncpy(sign,"==================================================",(int) percent);
+    }
+    printf("%s %7.2f%% [%-*.*s] %.2f/%.2f mb\r",file_name,percent,50,(int)percent / 2,sign,sum / 1024.0 / 1024.0,file_size / 1024.0 / 1024.0);
+    if ((int)percent != 0)
+        free(sign);
+    fflush(stdout);
+}
+
+unsigned long get_file_size(const char *filename)
+{
+    //log_d("get_file_size\n");
+    //通过系统调用直接得到文件的大小
+    struct stat buf;
+    if (stat(filename, &buf) < 0){
+        return 0;
+    }
+    return (unsigned long) buf.st_size;
+}
+
+unsigned long file_index(char* path)
+{
+    FILE *fp;
+    unsigned long last;
+    if((fp = fopen(path,"ab+")) == NULL)
+    {
+        printf("can not open %s\n",path);
+        return 0;
+    }else{
+        fseek(fp,0L,SEEK_END);
+        last=ftell(fp);
+        fclose(fp);
+        return last;
+    }
+}
+
+int download(int client_socket)
+{
+    int ret = 1;
+    int len;
+    unsigned long sum = 0;
+    char buffer[BUFSIZ] = { 0 };
+    FILE * fp;
+    
+    log_d("start download file:%s\n", full_http_res_header.file_name);
+    fp = fopen(tmp_http_res_header.file_name, "ab+");
+    
+    if (fp == NULL){
+        log_e("file open failed!\n");
+        ret = ERROR_FILE_OPEN_FAILED;
+        return ret;
+    }
+    while((len = read(client_socket,buffer,sizeof(buffer))) > 0){
+        ret = fwrite(&buffer, len, 1, fp);
+        if(ret != 1){
+            return ret;
+        }
+        sum += len;
+        progress_bar(full_http_res_header.file_name,(float)sum,(float)full_http_res_header.content_length);
+        if (full_http_res_header.content_length == sum){
+            printf("\n");
+            break;
+        }
+    }
+    fflush(fp);
+    fclose(fp);
+    return ret;
+}
+
+int continue_download(int client_socket)
+{
+    int ret = 1;
+    int len;
+    unsigned long sum = 0;
+    char buffer[BUFSIZ] = { 0 };
+    FILE * fp;
+    
+    log_d("start continue download file:%s\n", tmp_http_res_header.file_name);
+    fp = fopen(tmp_http_res_header.file_name, "ab+");
+    
+    if (fp == NULL){
+        log_e("file open failed!\n");
+        ret = ERROR_FILE_OPEN_FAILED;
+        return ret;
+    }else{
+        while((len = read(client_socket,buffer,sizeof(buffer))) > 0){
+            ret = fwrite(&buffer, len, 1, fp);
+            if(ret != 1){
+                return ret;
+            }
+            sum += len;
+            progress_bar(tmp_http_res_header.file_name,(float)sum,(float)tmp_http_res_header.content_length);
+            if (tmp_http_res_header.content_length == sum){
+                printf("\n");
+                break;
+            }
+        }
+    }
+    fflush(fp);
+    fclose(fp);
+    return ret;
+}
+
+int check_download_file()
+{
+    //log_d("check_download_file\n");
+    int ret = 0;
+    full_size = get_file_size(full_http_res_header.file_name);
+    if (full_http_res_header.content_length == full_size){
+        ret = SUCCESS_OK;
+        log_d("\n文件%s下载成功!\n\n", full_http_res_header.file_name);
+    }else if(full_http_res_header.content_length > full_size){
+        ret = ERROR_DOWNLOAD_FAILED;
+        log_e("\n文件下载中有字节缺失, 下载失败, 请重试! content_length:%ld, file size:%ld\n\n", full_http_res_header.content_length, full_size);
+    }else{
+        ret = ERROR_DOWNLOAD_FAILED;
+        log_e("\n文件%s下载未完成! 已下:%ld, total:%ld\n\n", full_http_res_header.file_name, full_size, full_http_res_header.content_length);
+    }
+    return ret;
+}
+
 void parse_url(const char *url, char *host, int *port, char *file_name)
 {
-    log_d("parse_url\n");
+    //log_d("parse_url\n");
     /*通过url解析出域名, 端口, 以及文件名*/
     int i,j = 0;
     int start = 0;
@@ -49,257 +194,15 @@ void parse_url(const char *url, char *host, int *port, char *file_name)
     file_name[j] = '\0';
 }
 
-void parse_header(const char *response)
-{
-    log_d("parse_header\n");
-    /*获取响应头的信息*/
-    //获取返回代码
-    if(send_again){
-        char *pos = strstr(response, "HTTP/");
-        if (pos){
-            sscanf(pos, "%*s %d", &tmp_http_res_header.status_code);
-        }
-        //获取返回文档类型
-        pos = strstr(response, "Content-Type:");
-        if (pos){
-            sscanf(pos, "%*s %s", tmp_http_res_header.content_type);
-        }
-        //获取返回文档起始点
-        pos = strstr(response, "Content-Range:");
-        if (pos){
-            sscanf(pos, "%*s %s", tmp_http_res_header.content_range);
-        }
-        //获取返回文档单位
-        pos = strstr(response, "Accept-Ranges:");
-        if (pos){
-            sscanf(pos, "%*s %s", tmp_http_res_header.accept_ranges);
-        }
-        //获取返回文档长度
-        pos = strstr(response, "Content-Length:");
-        if (pos){
-            sscanf(pos, "%*s %ld", &tmp_http_res_header.content_length);
-        }
-        log_d(">>>>http响应头解析成功:<<<<\n\n");
-        log_d("tmp_http_res_header Status-Code: %d\n", tmp_http_res_header.status_code);
-        log_d("tmp_http_res_header Content-Type: %s\n", tmp_http_res_header.content_type);
-        log_d("tmp_http_res_header Accept-Ranges: %s\n", tmp_http_res_header.accept_ranges);
-        log_d("tmp_http_res_header Content-Range: %s\n", tmp_http_res_header.content_range);
-        log_d("tmp_http_res_header Content-Length: %ld bytes\n\n", tmp_http_res_header.content_length);
-        
-        log_d("tmp_http_res_header FileName: %s \n", tmp_http_res_header.file_name);
-        log_d("tmp_http_res_header IPAddress: %s\n\n", tmp_http_res_header.ip_addr);
-    }else{
-        char *pos = strstr(response, "HTTP/");
-        if (pos){
-            sscanf(pos, "%*s %d", &full_http_res_header.status_code);
-        }
-        //获取返回文档类型
-        pos = strstr(response, "Content-Type:");
-        if (pos){
-            sscanf(pos, "%*s %s", full_http_res_header.content_type);
-        }
-        //获取返回文档起始点
-        pos = strstr(response, "Content-Range:");
-        if (pos){
-            sscanf(pos, "%*s %s", full_http_res_header.content_range);
-        }
-        //获取返回文档单位
-        pos = strstr(response, "Accept-Ranges:");
-        if (pos){
-            sscanf(pos, "%*s %s", full_http_res_header.accept_ranges);
-        }
-        //获取返回文档长度
-        pos = strstr(response, "Content-Length:");
-        if (pos){
-            sscanf(pos, "%*s %ld", &full_http_res_header.content_length);
-        }
-        log_d(">>>>http响应头解析成功:<<<<\n\n");
-        log_d("full_http_res_header Status-Code: %d\n", full_http_res_header.status_code);
-        log_d("full_http_res_header Content-Type: %s\n", full_http_res_header.content_type);
-        log_d("full_http_res_header Accept-Ranges: %s\n", full_http_res_header.accept_ranges);
-        log_d("full_http_res_header Content-Range: %s\n", full_http_res_header.content_range);
-        log_d("full_http_res_header Content-Length: %ld bytes\n\n", full_http_res_header.content_length);
-        
-        log_d("full_http_res_header FileName: %s \n", full_http_res_header.file_name);
-        log_d("full_http_res_header IPAddress: %s\n\n", full_http_res_header.ip_addr);
-    }
-}
-
-void get_ip_addr(char *host_name, char *ip_addr)
-{
-    log_d("get_ip_addr\n");
-    int i = 0;
-    struct hostent *host = gethostbyname(host_name);
-    if (!host){
-        log_e("get host from host_name failed\n");
-        ip_addr = NULL;
-        return;
-    }
-    
-    for (i = 0; host->h_addr_list[i]; i++){
-        strcpy(ip_addr, inet_ntoa( * (struct in_addr*) host->h_addr_list[i]));
-        log_e("get host from host_name, ip_addr:%s\n", ip_addr);
-        break;
-    }
-}
-
-void progress_bar(long cur_size, long total_size, double speed)
-{
-    /*用于显示下载进度条*/
-    float percent = (float) cur_size / total_size;
-    const int numTotal = 50;
-    int numShow = (int)(numTotal * percent);
-
-    if (numShow == 0){
-        numShow = 1;
-    }
-
-    if (numShow > numTotal){
-        numShow = numTotal;
-    }
-
-    char sign[51] = {0};
-    memset(sign, '=', numTotal);
-
-    printf("\r%.2f%%[%-*.*s] %.2f/%.2fMB %4.0fkb/s", percent * 100, numTotal, numShow, sign, cur_size / 1024.0 / 1024.0, total_size / 1024.0 / 1024.0, speed);
-    fflush(stdout);
-
-    if (numShow == numTotal){
-        log_d("\n");
-    }
-}
-
-unsigned long get_file_size(const char *filename)
-{
-    log_d("get_file_size\n");
-    //通过系统调用直接得到文件的大小
-    struct stat buf;
-    if (stat(filename, &buf) < 0){
-        return 0;
-    }
-    return (unsigned long) buf.st_size;
-}
-
-void download(int client_socket)
-{
-    log_d("download\n");
-    /*下载文件函数*/
-    unsigned long hasrecieve = 0;//记录已经下载的长度
-    struct timeval t_start, t_end;//记录一次读取的时间起点和终点, 计算速度
-    int mem_size = 8192;//缓冲区大小8K
-    int buf_len = mem_size;//理想状态每次读取8K大小的字节流
-    int len;
-    log_d("start download file:%s\n", full_http_res_header.file_name);
-    int fd = open(full_http_res_header.file_name, O_CREAT | O_WRONLY, S_IRWXG | S_IRWXO | S_IRWXU);//创建文件描述符
-    char *buf = (char *) malloc(mem_size * sizeof(char));
-    //从套接字流中读取文件流
-    long diff = 0;
-    int prelen = 0;
-    double speed;
-    
-    if (fd < 0){
-        log_e("文件创建失败!\n");
-        exit(0);
-    }
-    
-    while (hasrecieve < full_http_res_header.content_length){
-        gettimeofday(&t_start, NULL ); //获取开始时间
-        len = read(client_socket, buf, buf_len);
-        write(fd, buf, len);
-        gettimeofday(&t_end, NULL ); //获取结束时间
-        hasrecieve += len;//更新已经下载的长度
-        //计算速度
-        if (t_end.tv_usec - t_start.tv_usec >= 0 &&  t_end.tv_sec - t_start.tv_sec >= 0){
-            diff += 1000000 * ( t_end.tv_sec - t_start.tv_sec ) + (t_end.tv_usec - t_start.tv_usec);//us
-        }
-        //当一个时间段大于1s=1000000us时, 计算一次速度
-        if (diff >= 1000000){
-            speed = (double)(hasrecieve - prelen) / (double)diff * (1000000.0 / 1024.0);
-            prelen = hasrecieve;//清零下载量
-            diff = 0;//清零时间段长度
-        }
-        progress_bar(hasrecieve, full_http_res_header.content_length, speed);
-        if (hasrecieve == full_http_res_header.content_length){
-            break;
-        }
-    }
-}
-
-void continue_download(int client_socket)
-{
-    log_d("continue_download\n");
-    /*下载文件函数*/
-    unsigned long hasrecieve = 0;//记录已经下载的长度
-    struct timeval t_start, t_end;//记录一次读取的时间起点和终点, 计算速度
-    int mem_size = 8192;//缓冲区大小8K
-    int buf_len = mem_size;//理想状态每次读取8K大小的字节流
-    int len;
-
-    //创建文件描述符
-    log_d("start continue download file:%s\n", tmp_http_res_header.file_name);
-    int fd = open(tmp_http_res_header.file_name, O_APPEND, S_IRWXG | S_IRWXO | S_IRWXU);
-    if (fd < 0){
-        log_e("文件创建失败!\n");
-        exit(0);
-    }
-
-    char *buf = (char *) malloc(mem_size * sizeof(char));
-
-    //从套接字流中读取文件流
-    long diff = 0;
-    int prelen = 0;
-    double speed;
-
-    while (hasrecieve < tmp_http_res_header.content_length){
-        gettimeofday(&t_start, NULL ); //获取开始时间
-        len = read(client_socket, buf, buf_len);
-        write(fd, buf, len);
-        gettimeofday(&t_end, NULL ); //获取结束时间
-        hasrecieve += len;//更新已经下载的长度
-
-        //计算速度
-        if (t_end.tv_usec - t_start.tv_usec >= 0 &&  t_end.tv_sec - t_start.tv_sec >= 0){
-            diff += 1000000 * ( t_end.tv_sec - t_start.tv_sec ) + (t_end.tv_usec - t_start.tv_usec);//us
-        }
-        //当一个时间段大于1s=1000000us时, 计算一次速度
-        if (diff >= 1000000){
-            speed = (double)(hasrecieve - prelen) / (double)diff * (1000000.0 / 1024.0);
-            prelen = hasrecieve;//清零下载量
-            diff = 0;//清零时间段长度
-        }
-        progress_bar(hasrecieve, tmp_http_res_header.content_length, speed);
-        if (hasrecieve == tmp_http_res_header.content_length){
-            break;
-        }
-    }
-}
-
-int check_download_file()
-{
-    log_d("check_download_file\n");
-    int ret = 0;
-    full_size = get_file_size(full_http_res_header.file_name);
-    if (full_http_res_header.content_length == full_size){
-        ret = SUCCESS_OK;
-        log_d("\n文件%s下载成功!\n\n", full_http_res_header.file_name);
-    }else if(full_http_res_header.content_length > full_size){
-        ret = ERROR_DOWNLOAD_FAILED;
-        log_e("\n文件下载中有字节缺失, 下载失败, 请重试! content_length:%ld, file size:%ld\n\n", full_http_res_header.content_length, full_size);
-    }else{
-        ret = ERROR_DOWNLOAD_FAILED;
-        log_e("\n文件%s下载未完成! 已下:%ld, total:%ld\n\n", full_http_res_header.file_name, full_size, full_http_res_header.content_length);
-    }
-    return ret;
-}
-
 //http请求头信息
 int send_http_header(int client_socket)
 {
-    log_d("send_http_header\n");
+    //log_d("send_http_header\n");
     char header[2048] = {0};
     
     if(send_again){
-        tmp_size = get_file_size(tmp_http_res_header.file_name);
+        tmp_size = file_index(tmp_http_res_header.file_name);
+        //tmp_size = get_file_size(tmp_http_res_header.file_name);
         if(tmp_size > 0){
             sprintf(header, \
                 "GET %s HTTP/1.1\r\n"\
@@ -324,48 +227,9 @@ int send_http_header(int client_socket)
     return write(client_socket, header, strlen(header));
 }
 
-void get_http_response(int client_socket)
-{
-    log_d("get_http_response\n");
-    int mem_size = 4096;
-    int length, len = 0;
-    char *buf = (char *) malloc(mem_size * sizeof(char));
-    char *response = (char *) malloc(mem_size * sizeof(char));
-
-    //每次单个字符读取响应头信息
-    while ((len = read(client_socket, buf, 1)) != 0){
-        //log_d("get_http_response running in while len:%d, length:%d\n", len, length);
-        if (length + len > mem_size){
-            //动态内存申请, 因为无法确定响应头内容长度
-            mem_size *= 2;
-            char * temp = (char *) realloc(response, sizeof(char) * mem_size);
-            if (temp == NULL){
-                log_e("\t动态内存申请失败\n");
-                exit(-1);
-            }
-            response = temp;
-        }
-
-        buf[len] = '\0';
-        strcat(response, buf);
-
-        //找到响应头的头部信息
-        int i,flag = 0;
-        for (i = strlen(response) - 1; response[i] == '\n' || response[i] == '\r'; i--, flag++);
-        //连续两个换行和回车表示已经到达响应头的头尾, 即将出现的就是需要下载的内容
-        if (flag == 4){
-            break;
-        }
-        length += len;
-    }
-    
-    log_d("get_http_response out of while\n");
-    parse_header(response);
-}
-
 int parse_http_header(int client_socket, HTTP_RES_HEADER *http_res_header)
 {
-    log_d("parse_http_header\n");
+    //log_d("parse_http_header\n");
     char buffer[BUFSIZ],temp[BUFSIZ],*ptr;
     bzero(buffer,sizeof(buffer));
     bzero(temp,sizeof(temp));
@@ -407,11 +271,11 @@ int parse_http_header(int client_socket, HTTP_RES_HEADER *http_res_header)
         }
         n++;
     }
-    log_d(">>>>http响应头解析成功:<<<<\n\n");
+    log_d("parse_http_header success : \n\n");
     log_d("http_res_header Status-Code: %d\n", http_res_header->status_code);
     log_d("http_res_header Content-Type: %s\n", http_res_header->content_type);
     log_d("http_res_header Content-Range: %s\n", http_res_header->content_range);
-    log_d("http_res_header Content-Length: %ld bytes\n\n", http_res_header->content_length);
+    log_d("http_res_header Content-Length: %ld bytes\n", http_res_header->content_length);
     log_d("http_res_header FileName: %s \n", http_res_header->file_name);
     log_d("http_res_header IPAddress: %s\n\n", http_res_header->ip_addr);
     
@@ -421,8 +285,8 @@ int parse_http_header(int client_socket, HTTP_RES_HEADER *http_res_header)
 int http_get_full()
 {
     int ret = 0;
-    log_d("http_get_full\n");
-    log_d("create socket...\n");
+    //log_d("http_get_full\n");
+    //log_d("create socket...\n");
     int client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (client_socket < 0){
         ret = ERROR_CREATE_SOCKET_FAILED;
@@ -442,20 +306,23 @@ int http_get_full()
     }
     
     if(ret == -1){
-        log_e("\t发送http报文失败: %d\n", ret);
+        log_e("\tsend_http_header failed: %d\n", ret);
         return ERROR_SEND_HEADER_FAILED;
     }else{
-        log_e("\t发送http报文成功: %d\n", ret);
+        log_e("\tsend_http_header success: %d\n", ret);
         ret = parse_http_header(client_socket, &full_http_res_header);
         //get_http_response(client_socket);
         
         if (full_http_res_header.status_code != 200){
-            log_e("\t文件无法下载, 远程主机返回: %d\n", full_http_res_header.status_code);
+            log_e("\tdownload failed, statuc code: %d\n", full_http_res_header.status_code);
             ret = ERROR_HTTP_STATUS_CODE;
         }else if(!file_exist){
             send_again = 0;
             log_d("downloading...\n");
-            download(client_socket);
+            ret = download(client_socket);
+            if(!ret){
+                return ret;
+            }
             ret = check_download_file();
         }else{
             send_again = 1;
@@ -469,8 +336,8 @@ int http_get_full()
 int http_get_tmp()
 {
     int ret = 0;
-    log_d("http_get_tmp\n");
-    log_d("create socket...\n");
+    //log_d("http_get_tmp\n");
+    //log_d("create socket...\n");
     int client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (client_socket < 0){
         ret = ERROR_CREATE_SOCKET_FAILED;
@@ -490,19 +357,22 @@ int http_get_tmp()
     }
     
     if(ret == -1){
-        log_e("\t发送http报文失败: %d\n", ret);
+        log_e("\tsend_http_header failed: %d\n", ret);
         return ERROR_SEND_HEADER_FAILED;
     }else{
-        log_e("\t发送http报文成功: %d\n", ret);
+        log_e("\tsend_http_header success: %d\n", ret);
         ret = parse_http_header(client_socket, &tmp_http_res_header);
         //get_http_response(client_socket);
         
         if (tmp_http_res_header.status_code != 206){
-            log_e("\t文件无法下载, 远程主机返回: %d\n", tmp_http_res_header.status_code);
+            log_e("\tdownload failed, statuc code: %d\n", tmp_http_res_header.status_code);
             ret = ERROR_HTTP_STATUS_CODE;
         }else{
             log_d("downloading...\n");
-            continue_download(client_socket);
+            ret = continue_download(client_socket);
+            if(!ret){
+                return ret;
+            }
             ret = check_download_file();
         }
         close(client_socket);
@@ -513,7 +383,7 @@ int http_get_tmp()
 
 int get_host_info()
 {
-    log_d("get_host_info\n");
+    //log_d("get_host_info\n");
     parse_url(host_info.url, host_info.host, &host_info.port, full_http_res_header.file_name);
     get_ip_addr(host_info.host, host_info.ip_addr);         //从url中分析出主机名, 端口号, 文件名
     strcpy(full_http_res_header.ip_addr, host_info.ip_addr);
@@ -521,10 +391,10 @@ int get_host_info()
     strcpy(tmp_http_res_header.ip_addr, full_http_res_header.ip_addr);
     
     if (strlen(host_info.ip_addr) == 0){
-        log_e(">>>>下载地址解析失败<<<<\n");
+        log_e("parse_url failed\n");
         return ERROR_PARSE_URL;
     }else{
-        log_d(">>>>下载地址解析成功<<<<\n");
+        log_d("parse_url success\n");
         log_d(" URL: %s\n", host_info.url);
         log_d(" Host: %s\n", host_info.host);
         log_d(" IP Address: %s\n", host_info.ip_addr);
@@ -549,7 +419,7 @@ int get_host_info()
 
 void init()
 {
-    log_d("====init====\n");
+    //log_d("====init====\n");
     bzero(&host_info,sizeof(host_info));
     bzero(&full_http_res_header,sizeof(full_http_res_header));
     bzero(&tmp_http_res_header,sizeof(tmp_http_res_header));
@@ -560,7 +430,7 @@ void init()
 
 void free_all()
 {
-    log_d("====free_all====\n");
+    //log_d("====free_all====\n");
     bzero(&host_info,sizeof(host_info));
     bzero(&full_http_res_header,sizeof(full_http_res_header));
     bzero(&tmp_http_res_header,sizeof(tmp_http_res_header));
