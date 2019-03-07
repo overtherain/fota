@@ -13,9 +13,11 @@
 
 #define DEBUG
 
-int file_exist = 0;
 unsigned long tmp_size=0;
 unsigned long full_size = 0;
+
+int file_exist = 0;
+int send_again = 0;
 
 int SUCCESS_OK = 1;
 int ERROR_FAIL = -1;
@@ -44,7 +46,7 @@ typedef struct HOST_INFO
     char host[64];
     int port;
     char ip_addr[16];
-    char new_file_name[64];
+    char new_file_name[256];
 }HOST_INFO;
 
 HOST_INFO host_info;
@@ -54,14 +56,23 @@ struct sockaddr_in addr;
 
 void init();
 void free_all();
+
 void parse_url(const char *url, char *host, int *port, char *file_name);
 void get_ip_addr(char *host_name, char *ip_addr);
 void progress_bar(long cur_size, long total_size, double speed);
-unsigned long get_file_size(const char *filename);
-void download(int client_socket, char *file_name, unsigned long content_length);
-void continue_download(int client_socket, char *file_name, unsigned long content_length);
-int http_get(int client_socket);
+void download(int client_socket);
+void continue_download(int client_socket);
+void parse_header(const char *response);
+void get_http_response(int client_socket);
+
+int send_http_header(int client_socket);
+int http_get_full();
+int http_get_tmp();
 int get_host_info();
+int check_download_file();
+int parse_http_header(int client_socket, HTTP_RES_HEADER *http_res_header);
+
+unsigned long get_file_size(const char *filename);
 
 #ifdef DEBUG
     #define log_d(format, ...)  \
