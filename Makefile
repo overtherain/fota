@@ -1,2 +1,2 @@
-fota:fota.c
-	gcc -o download -I include/ fota.c
+fota:fota.c get_update_file.c 
+	gcc -o fota fota.c get_update_file.c  -lpthread
