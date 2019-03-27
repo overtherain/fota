@@ -304,6 +304,10 @@ int download(int client_socket)
         if(ret != 1){
             fflush(fp);
             fclose(fp);
+            int ch = chmod(tmp_http_res_header.file_name, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+            if(ch != 0){
+                log_e("%s:%d chmod file failed!\n", __FUNCTION__, __LINE__);
+            }
             return ERROR_WRITE_FILE;
         }
         sum += len;
@@ -315,6 +319,10 @@ int download(int client_socket)
     }
     fflush(fp);
     fclose(fp);
+    int ch = chmod(tmp_http_res_header.file_name, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+    if(ch != 0){
+        log_e("%s:%d chmod file failed!\n", __FUNCTION__, __LINE__);
+    }
     return ret;
 }
 
@@ -369,7 +377,7 @@ int http_get_full(void)
     log_d("%s:%d connect to host...\n", __FUNCTION__, __LINE__);
     int res = connect(client_socket, (struct sockaddr *) &addr, sizeof(addr));
     if (res == -1){
-        log_e("%:%d screate connect failed, error: %d\n", __FUNCTION__, __LINE__, res);
+        log_e("%s:%d screate connect failed, error : %d\n", __FUNCTION__, __LINE__, res);
         return ERROR_CONNECT_SOCKET_FAILED;
     }else{
         ret = send_http_header(client_socket, send_again, &host_info);

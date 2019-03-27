@@ -11,6 +11,7 @@
 #include "cutils/android_reboot.h"
 #include "cutils/properties.h"
 #include "get_update_file.h"
+#include "md5.h"
 
 //#define PROPERTY_VALUE_MAX 2048
 
@@ -18,6 +19,11 @@
 extern "C"
 {
 #endif
+
+#define READ_DATA_SIZE      1024
+#define MD5_SIZE            16
+#define MD5_STR_LEN        (MD5_SIZE * 2)
+#define OTA_PATCH_PATH      "/data/update.zip"
 
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t cond_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -112,6 +118,59 @@ int cut_str(char *arr1, char *arr2)
     
 }
 
+int compute_file_md5(const char *file_path, char *md5_str)
+{
+    int i;
+    int fd;
+    int ret;
+    unsigned char data[READ_DATA_SIZE];
+    unsigned char md5_value[MD5_SIZE];
+    MD5_CTX md5;
+
+    log_d("%s:%d open filepath : %s\n", __FUNCTION__, __LINE__, file_path);
+    fd = open(file_path, O_RDONLY);
+    if (-1 == fd)
+    {
+        //perror("open");
+        log_e("%s:%d open file error!\n", __FUNCTION__, __LINE__);
+        return -1;
+    }
+
+    // init md5
+    MD5Init(&md5);
+
+    while (1)
+    {
+        ret = read(fd, data, READ_DATA_SIZE);
+        if (-1 == ret)
+        {
+            //perror("read");
+            log_e("%s:%d read file error!\n", __FUNCTION__, __LINE__);
+            close(fd);
+            return -1;
+        }
+
+        MD5Update(&md5, data, ret);
+
+        if (0 == ret || ret < READ_DATA_SIZE)
+        {
+            break;
+        }
+    }
+
+    close(fd);
+
+    MD5Final(&md5, md5_value);
+
+    // convert md5 value to md5 string
+    for(i = 0; i < MD5_SIZE; i++)
+    {
+        snprintf(md5_str + i*2, 2+1, "%02x", md5_value[i]);
+    }
+    log_d("%s:%d cconvert md5 result : '%s'\n", __FUNCTION__, __LINE__, md5_str);
+    return 0;
+}
+
 void *check_server_thread(void *arg)
 {
     int ret = 0;
@@ -122,8 +181,9 @@ void *check_server_thread(void *arg)
     char serialno[PROPERTY_VALUE_MAX];
     char model[PROPERTY_VALUE_MAX];
     char imei[PROPERTY_VALUE_MAX];
-    HOST_INFO check_host_info;
-    HTTP_RESPONSE_HEADER http_response_header;
+    //HOST_INFO check_host_info;
+    //HOST_INFO download_host_info;
+    //HTTP_RESPONSE_HEADER http_response_header;
     struct timespec timeout;
     int socketfd;
     
@@ -288,7 +348,7 @@ void *check_server_thread(void *arg)
                         }else if(strlen(check_update_file_md5) == 0){
                             log_e("%s:%d check update failed check_update_file_md5 is null\n", __FUNCTION__, __LINE__);
                         }else if(strcmp(check_update_srcVersion, software_version) != 0){
-                            log_e("%s:%d cmd_server_init software_version is right target, phone:%s, server:%s\n", __FUNCTION__, software_version, check_update_srcVersion);
+                            log_e("%s:%d cmd_server_init software_version is right target, phone:%s, server:%s\n", __FUNCTION__, __LINE__, software_version, check_update_srcVersion);
                         }else{
                             log_e("%s:%d check update failed ret %s\n", __FUNCTION__, __LINE__, check_update_result);
                         }
@@ -325,57 +385,60 @@ void *download_server_thread(void *arg)
     while(!is_download_success){
         ret = get_update_file(download_host_info.url, "");
         if(ret){
-            is_download_success = 1;
-            const char *cmd_file = "/data/cache/recovery/command";
-            int fd;
-            char update_setting[100] = "--update_package=/data/update.zip\n--locale=en-US";
+            char md5_str[MD5_STR_LEN + 1];
+            ret = compute_file_md5(OTA_PATCH_PATH, md5_str);
             
-            ret = mkdir("/data/cache/", S_IRWXU | S_IRWXG | S_IRWXO);
-            if(-1 == ret && errno != EEXIST){
-                log_e("%s:%d mkdir /data/cache/ failed. errno is %d\n", __FUNCTION__, __LINE__, errno);
-                return (void *) -1;
-            }
-            ret = mkdir("/data/cache/recovery/", S_IRWXU | S_IRWXG | S_IRWXO);
-            if (-1 == ret && (errno != EEXIST))
-            {
-                log_e("%s:%d mkdir /data/cache/recovery/ failed. errno is %d" , __FUNCTION__, __LINE__, errno);
-                return (void *) -1;
-            }
-            fd = open("/data/cache/recovery/command", O_WRONLY | O_CREAT, 0777);
-            if (fd >= 0)
-            {
-                ret = write(fd, update_setting, strlen(update_setting) + 1);
-                sync();
-                close(fd);
-            }
-            else
-            {
-                log_e("%s:%d open /data/cache/recovery/command failed", __FUNCTION__, __LINE__);
-                return (void *) -1;
-            }
-            /*if(access("/data/cache/recovery", 0)){
-                ret = mkdir("/data/cache/recovery", 0777);
+            if(ret == 0){
+                if(strcmp(md5_str, download_host_info.md5) == 0){
+                    log_d("%s:%d compare md5 success\n", __FUNCTION__, __LINE__);
+                    is_download_success = 1;
+                    const char *cmd_file = "/data/cache/recovery/command";
+                    int fd;
+                    char update_setting[100] = "--update_package=/data/update.zip\n--locale=en-US";
+                    
+                    ret = mkdir("/data/cache/", S_IRWXU | S_IRWXG | S_IRWXO);
+                    if(-1 == ret && errno != EEXIST){
+                        log_e("%s:%d mkdir /data/cache/ failed. errno is %d\n", __FUNCTION__, __LINE__, errno);
+                        return (void *) -1;
+                    }
+                    ret = mkdir("/data/cache/recovery/", S_IRWXU | S_IRWXG | S_IRWXO);
+                    if (-1 == ret && (errno != EEXIST)){
+                        log_e("%s:%d mkdir /data/cache/recovery/ failed. errno is %d" , __FUNCTION__, __LINE__, errno);
+                        return (void *) -1;
+                    }
+                    fd = open("/data/cache/recovery/command", O_WRONLY | O_CREAT, 0777);
+                    if (fd >= 0){
+                        ret = write(fd, update_setting, strlen(update_setting) + 1);
+                        sync();
+                        close(fd);
+                    }else{
+                        log_e("%s:%d open /data/cache/recovery/command failed", __FUNCTION__, __LINE__);
+                        return (void *) -1;
+                    }
+                }else{
+                    log_e("%s:%d compare md5 failed, download md5 is %s, server md5 is %s!", __FUNCTION__, __LINE__, md5_str, download_host_info.md5);
+                    int del = remove(OTA_PATCH_PATH);
+                    if(del != 0){
+                        log_e("%s:%d delete bad file failed ret:%d\n", __FUNCTION__, __LINE__, del);
+                    }
+                    return (void *) -1;
+                }
             }else{
-                log_d("download_server_thread exist '/data/cache/recovery' dir\n");
-            }
-            fp = fopen(cmd_file, "w");
-            if(fp){
-                ret = fwrite(&update_setting, strlen(update_setting), 1, fp);
-            }else{
-                log_d("download_server_thread open file failed\n");
+                log_e("%s:%d compute_file_md5 failed\n", __FUNCTION__, __LINE__);
                 return (void *) -1;
-            }*/
+            }
+            
             if(ret){
-                //fflush(fp);
-                //fclose(fp);
                 sleep(1);
                 log_d("%s:%d download_server_thread write cmd success\n", __FUNCTION__, __LINE__);
-                //android_reboot(ANDROID_RB_RESTART2, 0, "recovery");
+                android_reboot(ANDROID_RB_RESTART2, 0, "recovery");
                 //execl("/system/bin/sh", "sh", "-c", "reboot recovery", (char *)0);
             }else{
                 log_d("%s:%d download_server_thread write cmd failed\n", __FUNCTION__, __LINE__);
                 return (void *) -2;
             }
+        }else{
+            log_e("%s:%d get_update_file from '%s' failed\n", __FUNCTION__, __LINE__, download_host_info.url);
         }
     }
     return (void *)ret;

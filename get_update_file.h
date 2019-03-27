@@ -1,5 +1,5 @@
-#ifndef _GET_UPDATE_FILE_H_
-#define _GET_UPDATE_FILE_H_
+#ifndef GET_UPDATE_FILE_H
+#define GET_UPDATE_FILE_H
 
 #include <stdio.h>
 //#include <sys/io.h>
@@ -43,7 +43,7 @@
 
 #ifdef RUN_ANDROID_LOG
     #define log_d(format, args...)  __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, format, ##args)
-    #define log_e(format, args...)  __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, format, ##args)
+    #define log_e(format, args...)  __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, format, ##args)
 #else
     #define log_d(format, ...)  \
     {                           \
@@ -105,4 +105,4 @@ int send_http_header(int client_socket, int again, HOST_INFO *host_info);
 int parse_http_response_header(int client_socket, HTTP_RESPONSE_HEADER *http_res_header);
 int get_update_file(const char *url, const char *new_file_name);
 
-#endif /* _GET_UPDATE_FILE_H_ */
+#endif /* GET_UPDATE_FILE_H */
