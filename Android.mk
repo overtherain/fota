@@ -7,12 +7,11 @@ commands_local_path := $(LOCAL_PATH)
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 
-LOCAL_STATIC_LIBRARIES += libcutils liblog
-LOCAL_SHARED_LIBRARIES := libcutils
+LOCAL_STATIC_LIBRARIES += libcutils liblog libutils
 
 LOCAL_SRC_FILES := fota.c \
                    get_update_file.c \
-                   check_update.c
+                   check_update.c 
 
 LOCAL_MODULE := fota
 LOCAL_MODULE_TAGS := optional

@@ -17,21 +17,21 @@ void get_ip_addr(char *host_name, char *ip_addr)
     int i = 0;
     struct hostent *host = gethostbyname(host_name);
     if (!host){
-        log_e("get host from host_name failed\n");
+        log_e("%s:%d get host from host_name failed\n", __FUNCTION__, __LINE__);
         ip_addr = NULL;
         return;
     }
     
     for (i = 0; host->h_addr_list[i]; i++){
         strcpy(ip_addr, inet_ntoa( * (struct in_addr*) host->h_addr_list[i]));
-        log_d("get host from host_name, ip_addr:%s\n", ip_addr);
+        log_d("%s:%d get host from host_name, ip_addr:%s\n", __FUNCTION__, __LINE__, ip_addr);
         break;
     }
 }
 
 void parse_url(const char *url, char *host, int *port, char *file_name)
 {
-    log_d("parse_url\n");
+    log_d("%s:%d parse_url\n", __FUNCTION__, __LINE__);
     /*通过url解析出域名, 端口, 以及文件名*/
     int i,j = 0;
     int start = 0;
@@ -78,7 +78,7 @@ void parse_url(const char *url, char *host, int *port, char *file_name)
     }
     tmp_file[j] = '\0';
     sprintf(file_name, "/data/%s", tmp_file);
-    log_d("parse_url tmp_file %s, file_name : %s\n", tmp_file, file_name);
+    log_d("%s:%d parse_url tmp_file %s, file_name : %s\n", __FUNCTION__, __LINE__, tmp_file, file_name);
 }
 
 int get_host_info(void)
@@ -91,15 +91,15 @@ int get_host_info(void)
     strcpy(tmp_http_res_header.ip_addr, full_http_res_header.ip_addr);
     
     if (strlen(host_info.ip_addr) == 0){
-        log_e("parse_url failed\n");
+        log_e("%s:%d parse_url failed\n", __FUNCTION__, __LINE__);
         return ERROR_PARSE_URL;
     }else{
-        log_d("parse_url success\n");
-        log_d(" URL: %s\n", host_info.url);
-        log_d(" Host: %s\n", host_info.host);
-        log_d(" IP Address: %s\n", host_info.ip_addr);
-        log_d(" Port: %d\n", host_info.port);
-        log_d(" FileName : %s\n", full_http_res_header.file_name);
+        log_d("%s:%d parse_url success\n", __FUNCTION__, __LINE__);
+        log_d("%s:%d URL: %s\n", __FUNCTION__, __LINE__, host_info.url);
+        log_d("%s:%d Host: %s\n", __FUNCTION__, __LINE__, host_info.host);
+        log_d("%s:%d IP Address: %s\n", __FUNCTION__, __LINE__, host_info.ip_addr);
+        log_d("%s:%d Port: %d\n", __FUNCTION__, __LINE__, host_info.port);
+        log_d("%s:%d FileName : %s\n", __FUNCTION__, __LINE__, full_http_res_header.file_name);
         
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = inet_addr(host_info.ip_addr);
@@ -107,10 +107,10 @@ int get_host_info(void)
         
         if(!access(full_http_res_header.file_name,0)){
             file_exist = 1;
-            log_d("file exist\n");
+            log_d("%s:%d file exist\n", __FUNCTION__, __LINE__);
         }else{
             file_exist = 0;
-            log_d("file not exist\n");
+            log_d("%s:%d file not exist\n", __FUNCTION__, __LINE__);
         }
         
         return SUCCESS_OK;
@@ -149,7 +149,7 @@ static unsigned long file_index(char* path)
     unsigned long last;
     if((fp = fopen(path,"ab+")) == NULL)
     {
-        printf("can not open %s\n",path);
+        log_d("%s:%d can not open %s\n", __FUNCTION__, __LINE__, path);
         return 0;
     }else{
         fseek(fp,0L,SEEK_END);
@@ -165,23 +165,23 @@ static int check_download_file(void)
     int ret = 0;
     full_size = get_file_size(full_http_res_header.file_name);
     if (full_http_res_header.content_length == full_size){
-        log_d("download %s success!\n\n", full_http_res_header.file_name);
+        log_d("%s:%d download %s success!\n\n", __FUNCTION__, __LINE__, full_http_res_header.file_name);
         if(strlen(host_info.new_file_name) != 0){
             ret = rename(full_http_res_header.file_name, host_info.new_file_name);
             if(ret != 0){
-                log_d("rename file %s to %s failed\n\n", full_http_res_header.file_name, host_info.new_file_name);
+                log_d("%s:%d rename file %s to %s failed\n\n", __FUNCTION__, __LINE__, full_http_res_header.file_name, host_info.new_file_name);
                 return ERROR_RENAME_FILE;
             }else if(ret == 0){
-                log_d("rename file to %s\n\n", host_info.new_file_name);
+                log_d("%s:%d rename file to %s\n\n", __FUNCTION__, __LINE__, host_info.new_file_name);
             }
         }
         ret = SUCCESS_OK;
     }else if(full_http_res_header.content_length > full_size){
         ret = ERROR_DOWNLOAD_FAILED;
-        log_e("\n文件下载中有字节缺失, 下载失败, 请重试! content_length:%ld, file size:%ld\n\n", full_http_res_header.content_length, full_size);
+        log_e("%s:%d 文件下载中有字节缺失, 下载失败, 请重试! content_length:%ld, file size:%ld\n\n", __FUNCTION__, __LINE__, full_http_res_header.content_length, full_size);
     }else{
         ret = ERROR_DOWNLOAD_LESSED;
-        log_e("\n文件%s下载未完成! 已下:%ld, total:%ld\n\n", full_http_res_header.file_name, full_size, full_http_res_header.content_length);
+        log_e("%s:%d 文件%s下载未完成! 已下:%ld, total:%ld\n\n", __FUNCTION__, __LINE__, full_http_res_header.file_name, full_size, full_http_res_header.content_length);
     }
     return ret;
 }
@@ -195,7 +195,7 @@ int send_http_header(int client_socket, int again, HOST_INFO *host_info)
     if(again){
         tmp_size = file_index(tmp_http_res_header.file_name);
         if(tmp_size == full_http_res_header.content_length){
-            log_e("send_http_header file has already download\n");
+            log_e("%s:%d file has already download\n", __FUNCTION__, __LINE__);
             return SUCCESS_ALREADY_DOWNLOAD;
         }
         //tmp_size = get_file_size(tmp_http_res_header.file_name);
@@ -216,7 +216,7 @@ int send_http_header(int client_socket, int again, HOST_INFO *host_info)
             "Host: %s:%d\r\n"\
             "Connection: keep-alive\r\n\r\n", host_info->url, host_info->host, host_info->port);
     }
-    log_d("Tmp_Header\n\n%s", header);
+    log_d("%s:%d Tmp_Header\n\n%s", __FUNCTION__, __LINE__, header);
     return write(client_socket, header, strlen(header));
 }
 
@@ -292,11 +292,11 @@ int download(int client_socket)
     char buffer[BUFSIZ] = { 0 };
     FILE * fp;
     
-    log_d("start download file:%s\n", full_http_res_header.file_name);
+    log_d("%s:%d start download file:%s\n", __FUNCTION__, __LINE__, full_http_res_header.file_name);
     fp = fopen(tmp_http_res_header.file_name, "ab+");
     
     if (fp == NULL){
-        log_e("file open failed!\n");
+        log_e("%s:%d file open failed!\n", __FUNCTION__, __LINE__);
         return ERROR_FILE_OPEN_FAILED;
     }
     while((len = read(client_socket,buffer,sizeof(buffer))) > 0){
@@ -307,7 +307,7 @@ int download(int client_socket)
             return ERROR_WRITE_FILE;
         }
         sum += len;
-        progress_bar(full_http_res_header.file_name,(float)sum,(float)full_http_res_header.content_length);
+        //progress_bar(full_http_res_header.file_name,(float)sum,(float)full_http_res_header.content_length);
         if (full_http_res_header.content_length == sum){
             printf("\n");
             break;
@@ -326,11 +326,11 @@ int continue_download(int client_socket)
     char buffer[BUFSIZ] = { 0 };
     FILE * fp;
     
-    log_d("start continue download file:%s\n", tmp_http_res_header.file_name);
+    log_d("%s:%d start continue download file:%s\n", __FUNCTION__, __LINE__, tmp_http_res_header.file_name);
     fp = fopen(tmp_http_res_header.file_name, "ab+");
     
     if (fp == NULL){
-        log_e("file open failed!\n");
+        log_e("%s:%d file open failed!\n", __FUNCTION__, __LINE__);
         ret = ERROR_FILE_OPEN_FAILED;
         return ret;
     }else{
@@ -342,7 +342,7 @@ int continue_download(int client_socket)
                 return ERROR_WRITE_FILE;
             }
             sum += len;
-            progress_bar(tmp_http_res_header.file_name,(float)sum,(float)tmp_http_res_header.content_length);
+            //progress_bar(tmp_http_res_header.file_name,(float)sum,(float)tmp_http_res_header.content_length);
             if (tmp_http_res_header.content_length == sum){
                 printf("\n");
                 break;
@@ -361,35 +361,35 @@ int http_get_full(void)
     //log_d("create socket...\n");
     int client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (client_socket < 0){
-        log_e("\tcreate socket failed: %d\n", client_socket);
+        log_e("%s:%d create socket failed: %d\n", __FUNCTION__, __LINE__, client_socket);
         return ERROR_CREATE_SOCKET_FAILED;
     }
     
     //连接远程主机
-    log_d("connect to host...\n");
+    log_d("%s:%d connect to host...\n", __FUNCTION__, __LINE__);
     int res = connect(client_socket, (struct sockaddr *) &addr, sizeof(addr));
     if (res == -1){
-        log_e("\tcreate connect failed, error: %d\n", res);
+        log_e("%:%d screate connect failed, error: %d\n", __FUNCTION__, __LINE__, res);
         return ERROR_CONNECT_SOCKET_FAILED;
     }else{
         ret = send_http_header(client_socket, send_again, &host_info);
     }
     
     if(ret == -1){
-        log_e("\tsend_http_header failed: %d\n", ret);
+        log_e("%s:%d send_http_header failed: %d\n", __FUNCTION__, __LINE__, ret);
         close(client_socket);
         return ERROR_SEND_HEADER_FAILED;
     }else{
-        log_d("\tsend_http_header success: %d\n", ret);
+        log_d("%s:%d send_http_header success: %d\n", __FUNCTION__, __LINE__, ret);
         ret = parse_http_response_header(client_socket, &full_http_res_header);
         //get_http_response(client_socket);
         
         if (full_http_res_header.status_code != 200){
-            log_e("\tdownload failed, statuc code: %d\n", full_http_res_header.status_code);
+            log_e("%s:%d download failed, statuc code: %d\n", __FUNCTION__, __LINE__, full_http_res_header.status_code);
             ret = ERROR_HTTP_STATUS_CODE;
         }else if(!file_exist){
             send_again = 0;
-            log_d("downloading...\n");
+            log_d("%s:%d downloading...\n", __FUNCTION__, __LINE__);
             ret = download(client_socket);
             if(!ret){
                 close(client_socket);
@@ -412,35 +412,35 @@ int http_get_tmp(void)
     //log_d("create socket...\n");
     int client_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (client_socket < 0){
-        log_e("\tcreate socket failed: %d\n", client_socket);
+        log_e("%s:%d create socket failed: %d\n", __FUNCTION__, __LINE__, client_socket);
         return ERROR_CREATE_SOCKET_FAILED;
     }
     
     //连接远程主机
-    log_d("connect to host...\n");
+    log_d("%s:%d connect to host...\n", __FUNCTION__, __LINE__);
     int res = connect(client_socket, (struct sockaddr *) &addr, sizeof(addr));
     if (res == -1){
-        log_e("\tcreate connect failed, error: %d\n", res);
+        log_e("%s:%d create connect failed, error: %d\n", __FUNCTION__, __LINE__, res);
         return ERROR_CONNECT_SOCKET_FAILED;
     }else{
         ret = send_http_header(client_socket, send_again, &host_info);
     }
     
     if(ret == -1){
-        log_e("\tsend_http_header failed: %d\n", ret);
+        log_e("%s:%d send_http_header failed: %d\n", __FUNCTION__, __LINE__, ret);
         return ERROR_SEND_HEADER_FAILED;
     }else if(ret == 3){
         return SUCCESS_ALREADY_DOWNLOAD;
     }else{
-        log_e("\tsend_http_header success: %d\n", ret);
+        log_e("%s:%d send_http_header success: %d\n", __FUNCTION__, __LINE__, ret);
         ret = parse_http_response_header(client_socket, &tmp_http_res_header);
         //get_http_response(client_socket);
         
         if (tmp_http_res_header.status_code != 206){
-            log_e("\tdownload failed, statuc code: %d\n", tmp_http_res_header.status_code);
+            log_e("%s:%d download failed, statuc code: %d\n", __FUNCTION__, __LINE__, tmp_http_res_header.status_code);
             ret = ERROR_HTTP_STATUS_CODE;
         }else{
-            log_d("downloading...\n");
+            log_d("%s:%d downloading...\n", __FUNCTION__, __LINE__);
             ret = continue_download(client_socket);
             if(!ret){
                 return ret;
@@ -486,23 +486,23 @@ int get_update_file(const char *url, const char *new_file_name)
     if(strlen(new_file_name) != 0){
         strcpy(host_info.new_file_name, new_file_name);
     }else{
-        log_e("get_update_file not input target name\n");
+        log_e("%s:%d not input target name\n", __FUNCTION__, __LINE__);
     }
     ret = get_host_info();
     if(!ret){
-        log_e("\tget_host_info error!\n");
+        log_e("%s:%d get_host_info error!\n", __FUNCTION__, __LINE__);
         return ret;
     }
     
     ret = http_get_full();
     if(!ret){
-        log_e("http get error : %d\n", ret);
+        log_e("%s:%d http get error : %d\n", __FUNCTION__, __LINE__, ret);
         return ret;
     }
     if(send_again){
         ret = http_get_tmp();
         if(!ret){
-            log_e("http get error : %d\n", ret);
+            log_e("%s:%d http get error : %d\n", __FUNCTION__, __LINE__, ret);
             return ret;
         }
     }

@@ -85,7 +85,7 @@ int encode_result(char *arr1, char *arr2, char *bstr, char *estr)
     p1 = strstr(arr1, bstr);
     p2 = strstr(arr1, estr);
     if(p1 == NULL || p2 == NULL || p1 > p2){
-        log_e("encode_result Notfound '%s', '%s'\n",bstr, estr);
+        log_e("%s:%d Notfound '%s', '%s'\n", __FUNCTION__, __LINE__, bstr, estr);
         return 0;
     }else{
         p1 += strlen(bstr);
@@ -100,9 +100,9 @@ int cut_str(char *arr1, char *arr2)
     int p2 = 0;
     p1 = strstr(arr1, ":");
     p2 = strlen(arr1);
-    log_d("cut_str arr1 length : %d\n", p2);
+    log_d("%s:%d arr1 length : %d\n", __FUNCTION__, __LINE__, p2);
     if(p1 == NULL || p2 == 0){
-        log_e("cut_str error!\n");
+        log_e("%s:%d error!\n", __FUNCTION__, __LINE__);
         return 0;
     }else{
         p1 += 2;
@@ -146,48 +146,48 @@ void *check_server_thread(void *arg)
         bzero(&http_response_header,sizeof(http_response_header));
         
         property_get("ro.product.hardware", hardware, "");
-        log_d("check_server_thread hardware:%s\n", hardware);
+        log_d("%s:%d hardware:%s\n", __FUNCTION__, __LINE__, hardware);
         
         property_get("ro.product.device", hardware_version, "");
-        log_d("check_server_thread hardware_version:%s\n", hardware_version);
+        log_d("%s:%d hardware_version:%s\n", __FUNCTION__, __LINE__, hardware_version);
         
         property_get("ro.product.dfsl_version", software_version, "");
-        log_d("check_server_thread software_version:%s\n", software_version);
+        log_d("%s:%d software_version:%s\n", __FUNCTION__, __LINE__, software_version);
         
         property_get("ro.boot.serialno", serialno, "");
-        log_d("check_server_thread serialno:%s\n", serialno);
+        log_d("%s:%d serialno:%s\n", __FUNCTION__, __LINE__, serialno);
         
         property_get("ro.product.model", model, "");
-        log_d("check_server_thread model:%s\n", model);
+        log_d("%s:%d model:%s\n", __FUNCTION__, __LINE__, model);
         
         sprintf(url, "http://121.43.183.196:8081/updsvr/ota/checkupdate?hw=%s&hwv=%s&swv=%s&serialno=%s&model=%s",
                 hardware, hardware_version, software_version, serialno, model);
         
-        log_d("check_server_thread url:%s\n", url);
+        log_d("%s:%d url:%s\n", __FUNCTION__, __LINE__, url);
         space_change(url, convert_url);
-        log_d("check_server_thread convert_url:%s\n", convert_url);
+        log_d("%s:%d convert_url:%s\n", __FUNCTION__, __LINE__, convert_url);
         
         if(strlen(url) != 0){
             strcpy(check_host_info.url, convert_url);
             parse_url(check_host_info.url, check_host_info.host, &check_host_info.port, http_response_header.file_name);
             get_ip_addr(check_host_info.host, check_host_info.ip_addr);
             if (strlen(check_host_info.ip_addr) == 0){
-                log_e("parse_url failed\n");
+                log_e("%s:%d parse_url failed\n", __FUNCTION__, __LINE__);
                 return (void *)ERROR_PARSE_URL;
             }else{
-                log_d("parse_url success\n");
-                log_d(" URL: %s\n", check_host_info.url);
-                log_d(" Host: %s\n", check_host_info.host);
-                log_d(" IP Address: %s\n", check_host_info.ip_addr);
-                log_d(" Port: %d\n", check_host_info.port);
-                log_d(" FileName : %s\n", http_response_header.file_name);
+                log_d("%s:%d parse_url success\n", __FUNCTION__, __LINE__);
+                log_d("%s:%d URL: %s\n", __FUNCTION__, __LINE__, check_host_info.url);
+                log_d("%s:%d Host: %s\n", __FUNCTION__, __LINE__, check_host_info.host);
+                log_d("%s:%d IP Address: %s\n", __FUNCTION__, __LINE__, check_host_info.ip_addr);
+                log_d("%s:%d Port: %d\n", __FUNCTION__, __LINE__, check_host_info.port);
+                log_d("%s:%d FileName : %s\n", __FUNCTION__, __LINE__, http_response_header.file_name);
             }
             socketfd = socket(AF_INET, SOCK_STREAM, 0);
             if (socketfd < 0){
-                log_e("\tcreate socket failed: %d\n", socketfd);
+                log_e("%s:%d create socket failed: %d\n", __FUNCTION__, __LINE__, socketfd);
                 return (void *)ERROR_CREATE_SOCKET_FAILED;
             }else{
-                log_e("\tcreate socket success: %d\n", socketfd);
+                log_e("%s:%d create socket success: %d\n", __FUNCTION__, __LINE__, socketfd);
             }
             
             struct sockaddr_in addr;
@@ -195,21 +195,21 @@ void *check_server_thread(void *arg)
             addr.sin_addr.s_addr = inet_addr(check_host_info.ip_addr);
             addr.sin_port = htons(check_host_info.port);
             
-            log_d("connect to host...\n");
+            log_d("%s:%d connect to host...\n", __FUNCTION__, __LINE__);
             ret = connect(socketfd, (struct sockaddr *) &addr, sizeof(addr));
             if (ret == -1){
-                log_e("\tcreate connect failed, error: %d\n", ret);
+                log_e("%s:%d create connect failed, error: %d\n", __FUNCTION__, __LINE__, ret);
                 return (void *)ERROR_CONNECT_SOCKET_FAILED;
             }else{
-                log_e("\tcreate connect success, res: %d\n", ret);
+                log_e("%s:%d create connect success, res: %d\n", __FUNCTION__, __LINE__, ret);
             }
             ret = send_http_header(socketfd, 0, &check_host_info);
             if(ret == -1){
-                log_e("\tsend_http_header failed: %d\n", ret);
+                log_e("%s:%d send_http_header failed: %d\n", __FUNCTION__, __LINE__, ret);
                 close(socketfd);
                 return (void *)ERROR_SEND_HEADER_FAILED;
             }else{
-                log_d("send_http_header success: %d\n", ret);
+                log_d("%s:%d send_http_header success: %d\n", __FUNCTION__, __LINE__, ret);
                 
                 ret = parse_http_response_header(socketfd, &http_response_header);
                 /*log_d("http_response_header Status-Code: %d\n", http_response_header.status_code);
@@ -220,11 +220,11 @@ void *check_server_thread(void *arg)
                 log_d("http_response_header Transfer-Encoding : %s\n", http_response_header.transfer_encoding);*/
                 
                 if(http_response_header.status_code == 200){
-                    log_d("get reponse success \n\n");
+                    log_d("%s:%d get reponse success \n\n", __FUNCTION__, __LINE__);
                     char buffer[BUFSIZ], tmp[BUFSIZ], json_buffer[BUFSIZ] = { 0 };
                     int len = 0;
                     while((len = read(socketfd, tmp, sizeof(tmp))) > 0){
-                        log_d("get reponse tmp : '%s'\n", tmp);
+                        log_d("%s:%d get reponse tmp : '%s'\n", __FUNCTION__, __LINE__, tmp);
                         if(strstr(tmp, "0\r\n") != NULL){
                             break;
                         }else{
@@ -234,45 +234,45 @@ void *check_server_thread(void *arg)
                     }
                     if(strlen(buffer) != 0){
                         encode_result(buffer, json_buffer, "{", "}");
-                        log_d("get reponse end json_buffer : \n'%s'\n", json_buffer);
+                        log_d("%s:%d get reponse end json_buffer : \n'%s'\n", __FUNCTION__, __LINE__, json_buffer);
                         
                         char *token = strtok(json_buffer, ",");
                         while(token){
-                            //log_d("get items : %s\n", token);
+                            //log_d("%s:%d get items : %s\n", __FUNCTION__, __LINE__, token);
                             char *ret;
                             if((ret = strstr(token, "CHECK_UPDATE_RESULT")) != NULL){
                                 cut_str(ret, check_update_result);
-                                log_d("check_update_result %s\n", check_update_result);
+                                log_d("%s:%d check_update_result %s\n", __FUNCTION__, __LINE__, check_update_result);
                             }else if((ret = strstr(token, "hardware")) != NULL){
                                 cut_str(ret, check_update_hardware);
-                                log_d("check_update_hardware %s\n", check_update_hardware);
+                                log_d("%s:%d check_update_hardware %s\n", __FUNCTION__, __LINE__, check_update_hardware);
                             }else if((ret = strstr(token, "model")) != NULL){
                                 cut_str(ret, check_update_model);
-                                log_d("check_update_model %s\n", check_update_model);
+                                log_d("%s:%d check_update_model %s\n", __FUNCTION__, __LINE__, check_update_model);
                             }else if((ret = strstr(token, "fileName")) != NULL){
                                 cut_str(ret, check_update_file_name);
-                                log_d("check_update_file_name %s\n", check_update_file_name);
+                                log_d("%s:%d check_update_file_name %s\n", __FUNCTION__, __LINE__, check_update_file_name);
                             }else if((ret = strstr(token, "filePath")) != NULL){
                                 cut_str(ret, check_update_file_path);
-                                log_d("check_update_file_path %s\n", check_update_file_path);
+                                log_d("%s:%d check_update_file_path %s\n", __FUNCTION__, __LINE__, check_update_file_path);
                             }else if((ret = strstr(token, "downloadUrl")) != NULL){
                                 cut_str(ret, check_update_file_download_url);
-                                log_d("check_update_file_download_url %s\n", check_update_file_download_url);
+                                log_d("%s:%d check_update_file_download_url %s\n", __FUNCTION__, __LINE__, check_update_file_download_url);
                             }else if((ret = strstr(token, "size")) != NULL){
                                 cut_str(ret, check_update_file_size);
-                                log_d("check_update_file_size %s\n", check_update_file_size);
+                                log_d("%s:%d check_update_file_size %s\n", __FUNCTION__, __LINE__, check_update_file_size);
                             }else if((ret = strstr(token, "description")) != NULL){
                                 cut_str(ret, check_update_description);
-                                log_d("check_update_description %s\n", check_update_description);
+                                log_d("%s:%d check_update_description %s\n", __FUNCTION__, __LINE__, check_update_description);
                             }else if((ret = strstr(token, "srcVersion")) != NULL){
                                 cut_str(ret, check_update_srcVersion);
-                                log_d("check_update_srcVersion %s\n", check_update_srcVersion);
+                                log_d("%s:%d check_update_srcVersion %s\n", __FUNCTION__, __LINE__, check_update_srcVersion);
                             }else if((ret = strstr(token, "dstVersion")) != NULL){
                                 cut_str(ret, check_update_dstVersion);
-                                log_d("check_update_dstVersion %s\n", check_update_dstVersion);
+                                log_d("%s:%d check_update_dstVersion %s\n", __FUNCTION__, __LINE__, check_update_dstVersion);
                             }else if((ret = strstr(token, "md5")) != NULL){
                                 cut_str(ret, check_update_file_md5);
-                                log_d("check_update_file_md5 %s\n", check_update_file_md5);
+                                log_d("%s:%d check_update_file_md5 %s\n", __FUNCTION__, __LINE__, check_update_file_md5);
                             }
                             token=strtok(NULL,",");
                         }
@@ -284,21 +284,21 @@ void *check_server_thread(void *arg)
                             close(socketfd);
                             return (void *)SUCCESS_HAVE_UPDATE;
                         }else if(strlen(check_update_file_download_url) == 0){
-                            log_e("check update failed check_update_file_download_url is null\n");
+                            log_e("%s:%d check update failed check_update_file_download_url is null\n", __FUNCTION__, __LINE__);
                         }else if(strlen(check_update_file_md5) == 0){
-                            log_e("check update failed check_update_file_md5 is null\n");
+                            log_e("%s:%d check update failed check_update_file_md5 is null\n", __FUNCTION__, __LINE__);
                         }else if(strcmp(check_update_srcVersion, software_version) != 0){
-                            log_e("cmd_server_init software_version is right target, phone:%s, server:%s\n", software_version, check_update_srcVersion);
+                            log_e("%s:%d cmd_server_init software_version is right target, phone:%s, server:%s\n", __FUNCTION__, software_version, check_update_srcVersion);
                         }else{
-                            log_e("check update failed ret %s\n", check_update_result);
+                            log_e("%s:%d check update failed ret %s\n", __FUNCTION__, __LINE__, check_update_result);
                         }
                     }else{
-                        log_e("get reponse items failed %d\n", ERROR_INVALID_URL_REPONSE_ITEMS);
+                        log_e("%s:%d get reponse items failed %d\n", __FUNCTION__, __LINE__, ERROR_INVALID_URL_REPONSE_ITEMS);
                         close(socketfd);
                         return (void *)ERROR_INVALID_URL_REPONSE_ITEMS;
                     }
                 }else{
-                    log_d("get reponse status_code : %d\n", http_response_header.status_code);
+                    log_d("%s:%d get reponse status_code : %d\n", __FUNCTION__, __LINE__, http_response_header.status_code);
                     close(socketfd);
                     return (void *)ERROR_INVALID_REPONSE_STATUS_CODE;
                 }
@@ -306,7 +306,7 @@ void *check_server_thread(void *arg)
             sleep(1);
             close(socketfd);
         }else{
-            log_d("create_socket ERROR_INVALID_URL\n");
+            log_d("%s:%d create_socket ERROR_INVALID_URL\n", __FUNCTION__, __LINE__);
             return (void *)ERROR_INVALID_URL;
         }
         timeout.tv_sec = time(NULL) + 10;
@@ -332,13 +332,13 @@ void *download_server_thread(void *arg)
             
             ret = mkdir("/data/cache/", S_IRWXU | S_IRWXG | S_IRWXO);
             if(-1 == ret && errno != EEXIST){
-                log_e("mkdir /data/cache/ failed. errno is %d\n", errno);
+                log_e("%s:%d mkdir /data/cache/ failed. errno is %d\n", __FUNCTION__, __LINE__, errno);
                 return (void *) -1;
             }
             ret = mkdir("/data/cache/recovery/", S_IRWXU | S_IRWXG | S_IRWXO);
             if (-1 == ret && (errno != EEXIST))
             {
-                log_e("mkdir /data/cache/recovery/ failed. errno is %d" , errno);
+                log_e("%s:%d mkdir /data/cache/recovery/ failed. errno is %d" , __FUNCTION__, __LINE__, errno);
                 return (void *) -1;
             }
             fd = open("/data/cache/recovery/command", O_WRONLY | O_CREAT, 0777);
@@ -350,7 +350,7 @@ void *download_server_thread(void *arg)
             }
             else
             {
-                log_e("open /data/cache/recovery/command failed");
+                log_e("%s:%d open /data/cache/recovery/command failed", __FUNCTION__, __LINE__);
                 return (void *) -1;
             }
             /*if(access("/data/cache/recovery", 0)){
@@ -369,11 +369,11 @@ void *download_server_thread(void *arg)
                 //fflush(fp);
                 //fclose(fp);
                 sleep(1);
-                log_d("download_server_thread write cmd success\n");
-                android_reboot(ANDROID_RB_RESTART2, 0, "recovery");
+                log_d("%s:%d download_server_thread write cmd success\n", __FUNCTION__, __LINE__);
+                //android_reboot(ANDROID_RB_RESTART2, 0, "recovery");
                 //execl("/system/bin/sh", "sh", "-c", "reboot recovery", (char *)0);
             }else{
-                log_d("download_server_thread write cmd failed\n");
+                log_d("%s:%d download_server_thread write cmd failed\n", __FUNCTION__, __LINE__);
                 return (void *) -2;
             }
         }
@@ -383,14 +383,14 @@ void *download_server_thread(void *arg)
 
 int cmd_server_init(void)
 {
-    log_d("cmd_server_init start\n");
+    log_d("%s:%d start\n", __FUNCTION__, __LINE__);
     int ret, recv1, recv2 = 0;
     pthread_t check_td, download_td;
     
     while(1){
         ret = pthread_create(&check_td, NULL, check_server_thread, NULL);
         if(ret != 0){
-            log_d("can't create check_td %d:\n", ret);
+            log_d("%s:%d can't create check_td %d:\n", __FUNCTION__, __LINE__, ret);
             return 0;
         }
         if(0){
@@ -400,29 +400,29 @@ int cmd_server_init(void)
         
         ret = pthread_join(check_td, &recv1);
         if (ret != 0){
-            log_d("cannot join with check_server_thread, recv1:%d \n", recv1);
+            log_d("%s:%d cannot join with check_server_thread, recv1:%d \n", __FUNCTION__, __LINE__, recv1);
         }else{
-            log_d("join with check_server_thread ret:%d, recv1:%d\n", ret, recv1);
-            log_d("check update file url:%s, md5:%s\n", download_host_info.url, download_host_info.md5);
+            log_d("%s:%d join with check_server_thread ret:%d, recv1:%d\n", __FUNCTION__, __LINE__, ret, recv1);
+            log_d("%s:%d check update file url:%s, md5:%s\n", __FUNCTION__, __LINE__, download_host_info.url, download_host_info.md5);
             if((int)SUCCESS_HAVE_UPDATE == recv1){
                 ret = pthread_create(&download_td, NULL, download_server_thread, NULL);
                 if(ret != 0){
-                    log_d("can't create download_td %d:\n", ret);
+                    log_d("%s:%d can't create download_td %d:\n", __FUNCTION__, __LINE__, ret);
                     return 0;
                 }
                 ret = pthread_join(download_td, &recv2);
                 if(ret != 0){
-                    log_d("cannot join with download_server_thread, recv2:%d \n", recv2);
+                    log_d("%s:%d cannot join with download_server_thread, recv2:%d \n", __FUNCTION__, __LINE__, recv2);
                 }else{
-                    log_d("join with download_server_thread ret:%d, recv2:%d\n", ret, recv2);
+                    log_d("%s:%d join with download_server_thread ret:%d, recv2:%d\n", __FUNCTION__, __LINE__, ret, recv2);
                 }
             }
         }
-        sleep(10);
+        sleep(60);
     }
     
     sleep(1);
-    log_d("cmd_server_init end!\n");
+    log_d("%s:%d end!\n", __FUNCTION__, __LINE__);
     return 0;
 }
 

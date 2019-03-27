@@ -16,19 +16,17 @@
 #include "cutils/properties.h"
 #include <utils/Log.h>
 
-#define DEBUG 1
-
-#define SUCCESS_ALREADY_DOWNLOAD            3
-#define SUCCESS_HAVE_UPDATE                 2
-#define SUCCESS_OK                          1
-#define ERROR_FAIL                          -1
-#define ERROR_INPUT_IP                      -3
-#define ERROR_PARSE_URL                     -4
-#define ERROR_CREATE_SOCKET_FAILED          -5
-#define ERROR_SEND_HEADER_FAILED            -6
-#define ERROR_HTTP_GET_FAILED               -7
-#define ERROR_DOWNLOAD_FAILED               -8
-#define ERROR_HTTP_STATUS_CODE              -9
+#define SUCCESS_ALREADY_DOWNLOAD              3
+#define SUCCESS_HAVE_UPDATE                   2
+#define SUCCESS_OK                            1
+#define ERROR_FAIL                           -1
+#define ERROR_INPUT_IP                       -3
+#define ERROR_PARSE_URL                      -4
+#define ERROR_CREATE_SOCKET_FAILED           -5
+#define ERROR_SEND_HEADER_FAILED             -6
+#define ERROR_HTTP_GET_FAILED                -7
+#define ERROR_DOWNLOAD_FAILED                -8
+#define ERROR_HTTP_STATUS_CODE               -9
 #define ERROR_FILE_OPEN_FAILED              -10
 #define ERROR_INVALID_URL                   -11
 #define ERROR_INVALID_FILE_NAME             -12
@@ -39,7 +37,14 @@
 #define ERROR_INVALID_URL_REPONSE_ITEMS     -17
 #define ERROR_INVALID_REPONSE_STATUS_CODE   -18
 
-#ifdef DEBUG
+//#define DEBUG 1
+#define LOG_TAG "FOTA"
+#define RUN_ANDROID_LOG
+
+#ifdef RUN_ANDROID_LOG
+    #define log_d(format, args...)  __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, format, ##args)
+    #define log_e(format, args...)  __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, format, ##args)
+#else
     #define log_d(format, ...)  \
     {                           \
         time_t t = time(0);     \
@@ -55,25 +60,22 @@
         ttt.tm_sec,             \
         __FUNCTION__,__LINE__, ##__VA_ARGS__);  \
     }
-#else
-    #define log_d(format, ...){}
-#endif /* DEBUG */
-
-#define log_e(format, ...)  \
-{                           \
-    time_t t = time(0);     \
-    struct tm ttt = *localtime(&t);     \
-    fprintf(stdout,     \
-    "[ERROR] [%5d_%02d_%02d %02d:%02d:%02d] [%s:%d] " \
-    format "",              \
-    ttt.tm_year + 1900,     \
-    ttt.tm_mon + 1,         \
-    ttt.tm_mday,            \
-    ttt.tm_hour,            \
-    ttt.tm_min,             \
-    ttt.tm_sec,             \
-    __FUNCTION__,__LINE__, ##__VA_ARGS__);  \
-}
+    #define log_e(format, ...)  \
+    {                           \
+        time_t t = time(0);     \
+        struct tm ttt = *localtime(&t);     \
+        fprintf(stdout,     \
+        "[ERROR] [%5d_%02d_%02d %02d:%02d:%02d] [%s:%d] " \
+        format "",              \
+        ttt.tm_year + 1900,     \
+        ttt.tm_mon + 1,         \
+        ttt.tm_mday,            \
+        ttt.tm_hour,            \
+        ttt.tm_min,             \
+        ttt.tm_sec,             \
+        __FUNCTION__,__LINE__, ##__VA_ARGS__);  \
+    }
+#endif
 
 typedef struct HTTP_RESPONSE_HEADER//保持相应头信息
 {
