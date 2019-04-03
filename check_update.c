@@ -22,8 +22,9 @@ extern "C"
 
 #define READ_DATA_SIZE      1024
 #define MD5_SIZE            16
-#define MD5_STR_LEN        (MD5_SIZE * 2)
+#define MD5_STR_LEN         (MD5_SIZE * 2)
 #define OTA_PATCH_PATH      "/data/update.zip"
+#define THREAD_TIMEOUT      60
 
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t cond_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -114,6 +115,7 @@ int cut_str(char *arr1, char *arr2)
         p1 += 2;
         memcpy(arr2, p1, strlen(p1)-1);
     }
+    log_d("%s:%d out str:'%s'\n", __FUNCTION__, __LINE__, arr2);
     return 1;
     
 }
@@ -173,34 +175,36 @@ int compute_file_md5(const char *file_path, char *md5_str)
 
 void *check_server_thread(void *arg)
 {
-    int ret = 0;
-    char url[2048], convert_url[2048];
-    char hardware[PROPERTY_VALUE_MAX];
-    char hardware_version[PROPERTY_VALUE_MAX];
-    char software_version[PROPERTY_VALUE_MAX];
-    char serialno[PROPERTY_VALUE_MAX];
-    char model[PROPERTY_VALUE_MAX];
-    char imei[PROPERTY_VALUE_MAX];
     //HOST_INFO check_host_info;
     //HOST_INFO download_host_info;
     //HTTP_RESPONSE_HEADER http_response_header;
     struct timespec timeout;
-    int socketfd;
-    
-    char check_update_result[64];
-    char check_update_hardware[64];
-    char check_update_model[64];
-    char check_update_file_name[64];
-    char check_update_file_path[64];
-    char check_update_file_download_url[2048];
-    char check_update_file_size[64];
-    char check_update_description[2048];
-    char check_update_srcVersion[1024];
-    char check_update_dstVersion[1024];
-    char check_update_file_md5[64];
     is_check_update = 1;
+    int ret = 0;
     
     while(is_check_update){
+        ret = 0;
+        int socketfd = 0;
+        char url[2048] = {'\0'};
+        char convert_url[2048] = {'\0'};
+        char hardware[PROPERTY_VALUE_MAX] = {'\0'};
+        char hardware_version[PROPERTY_VALUE_MAX] = {'\0'};
+        char software_version[PROPERTY_VALUE_MAX] = {'\0'};
+        char serialno[PROPERTY_VALUE_MAX] = {'\0'};
+        char model[PROPERTY_VALUE_MAX] = {'\0'};
+        char imei[PROPERTY_VALUE_MAX] = {'\0'};
+        char check_update_result[64] = {'\0'};
+        char check_update_hardware[64] = {'\0'};
+        char check_update_model[64] = {'\0'};
+        char check_update_file_name[64] = {'\0'};
+        char check_update_file_path[64] = {'\0'};
+        char check_update_file_download_url[2048] = {'\0'};
+        char check_update_file_size[64] = {'\0'};
+        char check_update_description[2048] = {'\0'};
+        char check_update_srcVersion[1024] = {'\0'};
+        char check_update_dstVersion[1024] = {'\0'};
+        char check_update_file_md5[64] = {'\0'};
+        
         bzero(&check_host_info,sizeof(check_host_info));
         bzero(&download_host_info,sizeof(download_host_info));
         bzero(&http_response_header,sizeof(http_response_header));
@@ -285,7 +289,8 @@ void *check_server_thread(void *arg)
                     int len = 0;
                     while((len = read(socketfd, tmp, sizeof(tmp))) > 0){
                         log_d("%s:%d get reponse tmp : '%s'\n", __FUNCTION__, __LINE__, tmp);
-                        if(strstr(tmp, "0\r\n") != NULL){
+                        if(strcmp(tmp, "0\r\n\r\n") == 0){
+                            log_d("%s:%d get reponse tmp == '0\r\n' : '%s'\n", __FUNCTION__, __LINE__, tmp);
                             break;
                         }else{
                             strcpy(buffer, tmp);
@@ -298,7 +303,7 @@ void *check_server_thread(void *arg)
                         
                         char *token = strtok(json_buffer, ",");
                         while(token){
-                            //log_d("%s:%d get items : %s\n", __FUNCTION__, __LINE__, token);
+                            log_d("%s:%d get items : %s\n", __FUNCTION__, __LINE__, token);
                             char *ret;
                             if((ret = strstr(token, "CHECK_UPDATE_RESULT")) != NULL){
                                 cut_str(ret, check_update_result);
@@ -352,6 +357,13 @@ void *check_server_thread(void *arg)
                         }else{
                             log_e("%s:%d check update failed ret %s\n", __FUNCTION__, __LINE__, check_update_result);
                         }
+                        if(!access(OTA_PATCH_PATH,0)){
+                            log_d("%s:%d old update file exist, delete it\n", __FUNCTION__, __LINE__, OTA_PATCH_PATH);
+                            int del = remove(OTA_PATCH_PATH);
+                            if(del != 0){
+                                log_e("%s:%d delete bad file failed ret:%d\n", __FUNCTION__, __LINE__, del);
+                            }
+                        }
                     }else{
                         log_e("%s:%d get reponse items failed %d\n", __FUNCTION__, __LINE__, ERROR_INVALID_URL_REPONSE_ITEMS);
                         close(socketfd);
@@ -369,7 +381,7 @@ void *check_server_thread(void *arg)
             log_d("%s:%d create_socket ERROR_INVALID_URL\n", __FUNCTION__, __LINE__);
             return (void *)ERROR_INVALID_URL;
         }
-        timeout.tv_sec = time(NULL) + 10;
+        timeout.tv_sec = time(NULL) + THREAD_TIMEOUT;
         timeout.tv_nsec = 0;
         pthread_mutex_lock(&cond_mutex);
         pthread_cond_timedwait(&cond, &cond_mutex, &timeout);
